@@ -1,0 +1,172 @@
+{
+  "config": {
+    "WIN": 1000,
+    "N_WIN": 60,
+    "WARMUP_N": 30000,
+    "ATTACK_RATIO": 0.4,
+    "DRIFT1_WIN": 20,
+    "NEW_SHARE": 0.85,
+    "DRIFT2_START": 40,
+    "DRIFT2_END": 50,
+    "MAX_FACTOR": 5.0,
+    "OLD_FAMILIES": [
+      "Generic",
+      "Exploits",
+      "Fuzzers",
+      "DoS"
+    ],
+    "VOLUME_COLS": [
+      "sbytes",
+      "dbytes",
+      "sload",
+      "dload",
+      "spkts",
+      "dpkts",
+      "rate"
+    ],
+    "KS_ALPHA": 0.001,
+    "KS_FRAC": 0.1
+  },
+  "true_drifts": [
+    {
+      "type": "abrupt",
+      "window": 20
+    },
+    {
+      "type": "gradual",
+      "start": 40,
+      "end": 50
+    }
+  ],
+  "adwin_alarm_rows": [
+    20287,
+    47327
+  ],
+  "ks_frac_by_window": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.2308,
+    0.2308,
+    0.2308,
+    0.2308,
+    0.2564,
+    0.2308,
+    0.2308,
+    0.2564,
+    0.2308,
+    0.2308,
+    0.2308,
+    0.2308,
+    0.2564,
+    0.2308,
+    0.2564,
+    0.2564,
+    0.2308,
+    0.2308,
+    0.2308,
+    0.3077,
+    0.3846,
+    0.359,
+    0.359,
+    0.3846,
+    0.3846,
+    0.3846,
+    0.3846,
+    0.3846,
+    0.3846,
+    0.3846,
+    0.3846,
+    0.3846,
+    0.3846,
+    0.3846,
+    0.3846,
+    0.3846,
+    0.3846,
+    0.4103,
+    0.3846,
+    0.3846
+  ],
+  "retrains": [
+    {
+      "window": 20,
+      "reason": "drift",
+      "adwin": true,
+      "ks": true,
+      "ks_frac": 0.231,
+      "train_rows": 6000
+    },
+    {
+      "window": 23,
+      "reason": "consolidate",
+      "adwin": false,
+      "ks": false,
+      "ks_frac": 0.0,
+      "train_rows": 6000
+    },
+    {
+      "window": 40,
+      "reason": "drift",
+      "adwin": false,
+      "ks": true,
+      "ks_frac": 0.154,
+      "train_rows": 6000
+    },
+    {
+      "window": 43,
+      "reason": "drift",
+      "adwin": false,
+      "ks": true,
+      "ks_frac": 0.179,
+      "train_rows": 6000
+    },
+    {
+      "window": 46,
+      "reason": "drift",
+      "adwin": false,
+      "ks": true,
+      "ks_frac": 0.154,
+      "train_rows": 6000
+    },
+    {
+      "window": 49,
+      "reason": "drift",
+      "adwin": false,
+      "ks": true,
+      "ks_frac": 0.154,
+      "train_rows": 6000
+    },
+    {
+      "window": 52,
+      "reason": "consolidate",
+      "adwin": false,
+      "ks": false,
+      "ks_frac": 0.0,
+      "train_rows": 6000
+    }
+  ],
+  "versions": {
+    "sklearn": "1.6.1",
+    "xgboost": "3.4.1",
+    "river": "0.26.1",
+    "pandas": "2.2.3",
+    "numpy": "2.5.4"
+  }
+}

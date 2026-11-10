@@ -1,0 +1,4 @@
+,pre-drift (0-19),new attacks (20-39),gradual drift (40-49),after (50-59),F1 on all post-drift rows,recall on all post-drift rows
+Static (no adaptation),0.9314,0.8049,0.8618,0.8755,0.8405,0.8101
+Drift-triggered retrain,0.9314,0.946,0.9481,0.9591,0.9503,0.9438
+Online ARF,0.9107,0.9411,0.9385,0.9467,0.9419,0.9345
