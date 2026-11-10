@@ -342,12 +342,156 @@ def page_predict():
     with st.expander("Show all values sent to the model"):
         st.dataframe(X.T.rename(columns={0: "value"}))
 
+# ---------------------------------------------------------------- page 5
+MEASURED_ON = "a Google Colab CPU runtime"  # edit this if you re-run the timing cell on another machine
+
+
+@st.cache_data
+def load_performance():
+    path = DATA / "performance_report.csv"
+    if not path.exists():
+        return None
+    df = pd.read_csv(path)
+    return {str(m): float(v) for m, v in zip(df["measure"], df["value"])}
+
+
+def perf_value(perf, keyword):
+    for name, val in perf.items():
+        if keyword.lower() in name.lower():
+            return val
+    return None
+
+
+def show_load(col, label, load, help_text):
+    col.metric(label, f"{load:.2%}", help=help_text)
+    if load >= 1:
+        col.error("Cannot keep up at this rate.")
+    elif load >= 0.7:
+        col.warning("Close to the limit.")
+    else:
+        col.success("Comfortable.")
+
+
+def page_performance():
+    st.title("Performance and scalability")
+    perf = load_performance()
+    if perf is None:
+        st.error("performance_report.csv was not found in the data folder.")
+        return
+
+    pre_rps = perf_value(perf, "preprocessing throughput")
+    xgb_rps = perf_value(perf, "XGBoost batch throughput")
+    one_ms = perf_value(perf, "single-record latency")
+    arf_ms = perf_value(perf, "ARF single-row")
+    retrain_s = perf_value(perf, "retrain on")
+    ks_s = perf_value(perf, "KS test")
+    adwin_us = perf_value(perf, "ADWIN update")
+    size_mb = perf_value(perf, "model size")
+    needed = [pre_rps, xgb_rps, one_ms, arf_ms, retrain_s, ks_s, adwin_us, size_mb]
+    if any(v is None for v in needed):
+        st.error("performance_report.csv is missing some measurements. "
+                 "Re-run the timing cell in the Day 2 notebook and download it again.")
+        return
+
+    e2e_rps = 1.0 / (1.0 / pre_rps + 1.0 / xgb_rps)
+    arf_rps = 1000.0 / arf_ms
+
+    st.write(
+        "A detection system is only useful if it can keep up with the traffic it watches, and "
+        "adapting to drift has a cost. This page shows how fast each part of the system runs, "
+        "and lets you check whether it could handle a given traffic rate. All figures were "
+        f"measured on {MEASURED_ON}."
+    )
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Classification throughput", f"{e2e_rps:,.0f} flows/s",
+              help="Preprocessing and XGBoost scoring combined, for batches of flows.")
+    c2.metric("Single-record latency", f"{one_ms:.2f} ms",
+              help="Time to score one preprocessed flow with XGBoost.")
+    c3.metric("Retrain time", f"{retrain_s:.2f} s",
+              help="Time to rebuild the XGBoost model when drift triggers a retrain.")
+    c4.metric("Model size", f"{size_mb:.2f} MB")
+
+    st.subheader("What each measurement means")
+    rows = [
+        ("Preprocessing throughput", f"{pre_rps:,.0f} rows/s",
+         "How fast raw flow records are turned into model inputs (log transform, scaling, "
+         "one-hot encoding). Every flow passes through this step before classification."),
+        ("XGBoost batch throughput", f"{xgb_rps:,.0f} rows/s",
+         "How fast the trained model scores flows that are already preprocessed, "
+         "in batches of 10,000."),
+        ("XGBoost single-record latency", f"{one_ms:.2f} ms",
+         "Time to score one flow on its own, as on the prediction page. It is higher per "
+         "row than in batches because each call has fixed overhead."),
+        ("ARF single-row prediction", f"{arf_ms:.2f} ms",
+         "Time for the online learner to classify one flow. This is prediction only: "
+         "learning from each label adds more time per row, which was not measured."),
+        ("XGBoost retrain", f"{retrain_s:.2f} s",
+         "Time to rebuild the model on the buffer of recent labelled windows when drift "
+         "triggers a retrain. Traffic keeps arriving meanwhile, so a real system would "
+         "retrain in the background."),
+        ("KS test per window", f"{ks_s:.3f} s",
+         "Cost of comparing every numeric feature of one 1,000-row window against the "
+         "reference. It runs once per window."),
+        ("ADWIN update", f"{adwin_us:.1f} microseconds per row",
+         "Cost of feeding one prediction outcome (right or wrong) to the error-based "
+         "drift detector."),
+        ("Model size", f"{size_mb:.2f} MB",
+         "Size of the saved XGBoost model, which matters for storage and for sending "
+         "updated models to monitoring points."),
+    ]
+    st.table(pd.DataFrame(rows, columns=["Measurement", "Value", "What it tells you"])
+             .set_index("Measurement"))
+
+    st.subheader("Throughput of each component")
+    cap = pd.DataFrame({
+        "Component": ["Preprocessing", "XGBoost scoring", "Preprocessing + XGBoost", "ARF prediction"],
+        "Rows per second": [pre_rps, xgb_rps, e2e_rps, arf_rps],
+    })
+    fig = px.bar(cap, x="Component", y="Rows per second", log_y=True, text_auto=".3s")
+    fig.update_traces(marker_color="#3D5A80")
+    fig.update_layout(height=360, margin=dict(t=20, b=10))
+    st.plotly_chart(fig)
+    st.caption("Log scale: each gridline is ten times higher than the one below it.")
+
+    st.subheader("Capacity check")
+    st.write("Enter a traffic rate to see how much of the measured machine's capacity each "
+             "part would use. 100% means fully busy.")
+    flows = st.number_input("Incoming network flows per second", min_value=1,
+                            max_value=10_000_000, value=2000, step=500)
+
+    l1, l2, l3 = st.columns(3)
+    show_load(l1, "XGBoost pipeline", flows / e2e_rps,
+              "Preprocessing plus classification of every incoming flow.")
+    show_load(l2, "ARF (prediction only)", flows / arf_rps,
+              "Prediction only. Learning from labels would add to this.")
+    detect_load = (flows / WIN) * ks_s + flows * adwin_us / 1e6
+    show_load(l3, "Drift detection", detect_load,
+              "The KS test once per window plus ADWIN on every row.")
+    st.metric("Flows arriving during one retrain", f"{flows * retrain_s:,.0f}",
+              help="These must be classified by the old model, or queued, while the new one trains.")
+    
+
+    with st.expander("Limitations"):
+        st.markdown(
+            f"- Measured on {MEASURED_ON}; the best of three runs was kept. Results differ "
+            "between machines and between runs.\n"
+            "- XGBoost uses several threads, so throughput depends on how many cores the "
+            "machine has.\n"
+            "- Feature extraction from raw packets, disk and network input/output are not "
+            "included.\n"
+            "- The ARF figure covers prediction only, not learning.\n"
+            "- The retraining time covers training the model, not collecting or labelling the data."
+        )
+
 
 # ---------------------------------------------------------------- navigation
 st.sidebar.title("NIDS Drift Monitor")
 page = st.sidebar.radio("Go to", ["Overview", "Data explorer",
-                                  "Stream and drift monitor", "Try a prediction"])
+                                  "Stream and drift monitor", "Try a prediction",
+                                  "Performance and scalability"])
 {"Overview": page_overview,
  "Data explorer": page_data,
  "Stream and drift monitor": page_stream,
- "Try a prediction": page_predict}[page]()
+ "Try a prediction": page_predict,
+ "Performance and scalability": page_performance}[page]()

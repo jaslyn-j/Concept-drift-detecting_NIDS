@@ -1,0 +1,9 @@
+measure,value
+preprocessing throughput (rows/s),114794.244
+XGBoost batch throughput (rows/s),125063.496
+XGBoost single-record latency (ms),1.343
+ARF single-row prediction (ms),0.453
+"XGBoost retrain on 6,000 rows (s)",4.853
+"KS test per 1,000-row window (s)",0.095
+ADWIN update per row (microseconds),0.307
+XGBoost model size (MB),0.81
